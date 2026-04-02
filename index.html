@@ -1,0 +1,1765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAe0lEQVR4nGNgGAUjHTDCGCvarP4jS0RUHYPL0RIw0cOSUQcMagewEKNIX18/hYGBYTaSUOrFixfnDIsQYBp1AMOoAwYYMI06gGHUASPdASxk6putr6+PXDnBQO7FixenDKkQYBoSUXARUvdTpf4fdCHANOIdMAoYBhoAAANREhpXPl8VAAAAAElFTkSuQmCC">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Logic Management — Better by Design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500&display=swap" rel="stylesheet">
+<style>
+/* ============================================
+   RESET & BASE
+   ============================================ */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --white: #FFFFFF;
+  --cream: #FAF8F5;
+  --charcoal: #2C2C2C;
+  --gold: #B08D57;
+  --gold-light: #C9A96E;
+  --marble: #E8E4E0;
+  --slate: #3A3A3A;
+  --blueprint: #1a3a5c;
+  --blueprint-line: rgba(176, 141, 87, 0.15);
+}
+
+html {
+  scroll-behavior: smooth;
+  overflow-x: hidden;
+}
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  color: var(--charcoal);
+  background: var(--cream);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5 {
+  font-family: 'Playfair Display', serif;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+/* ============================================
+   LOADING SCREEN
+   ============================================ */
+.loader {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: var(--charcoal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  transition: opacity 0.8s ease, visibility 0.8s ease;
+}
+.loader.done {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.loader-text {
+  font-family: 'Playfair Display', serif;
+  color: var(--gold);
+  font-size: clamp(1.2rem, 3vw, 2rem);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  opacity: 0;
+  animation: loaderFade 1.5s ease 0.3s forwards;
+}
+.loader-bar {
+  width: 200px;
+  height: 2px;
+  background: var(--slate);
+  margin-top: 30px;
+  border-radius: 2px;
+  overflow: hidden;
+}
+.loader-bar-fill {
+  height: 100%;
+  width: 0;
+  background: var(--gold);
+  animation: loaderBar 2s ease 0.5s forwards;
+}
+@keyframes loaderFade { to { opacity: 1; } }
+@keyframes loaderBar { to { width: 100%; } }
+
+/* ============================================
+   BLUEPRINT GRID OVERLAY (global)
+   ============================================ */
+.blueprint-grid {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.03;
+  background-image:
+    linear-gradient(var(--gold) 1px, transparent 1px),
+    linear-gradient(90deg, var(--gold) 1px, transparent 1px);
+  background-size: 60px 60px;
+}
+
+/* ============================================
+   BUILDING PROGRESS INDICATOR (right side)
+   ============================================ */
+.building-indicator {
+  position: fixed;
+  right: 24px;
+  bottom: 30px;
+  width: 60px;
+  height: 220px;
+  z-index: 9000;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+.building-indicator.visible { opacity: 1; }
+
+.building-indicator svg {
+  width: 100%;
+  height: 100%;
+}
+.building-indicator .bld-line {
+  stroke: var(--gold);
+  stroke-width: 1.5;
+  fill: none;
+  stroke-dasharray: 1000;
+  stroke-dashoffset: 1000;
+  transition: stroke-dashoffset 0.3s ease;
+}
+.building-indicator .bld-fill {
+  fill: var(--gold);
+  opacity: 0.08;
+}
+.building-indicator .bld-label {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 8px;
+  fill: var(--gold);
+  text-anchor: middle;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* ============================================
+   FLOATING PARTICLES
+   ============================================ */
+.particles {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  overflow: hidden;
+}
+.particle {
+  position: absolute;
+  background: var(--gold);
+  opacity: 0;
+  animation: particleFloat linear infinite;
+}
+.particle.square { border-radius: 1px; }
+.particle.circle { border-radius: 50%; }
+.particle.line { border-radius: 0; height: 1px !important; }
+
+@keyframes particleFloat {
+  0% { transform: translateY(100vh) rotate(0deg); opacity: 0; }
+  10% { opacity: 0.15; }
+  90% { opacity: 0.15; }
+  100% { transform: translateY(-100px) rotate(360deg); opacity: 0; }
+}
+
+/* ============================================
+   NAVBAR
+   ============================================ */
+.navbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 8000;
+  padding: 20px 50px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: all 0.5s ease;
+  background: transparent;
+}
+.navbar.scrolled {
+  background: rgba(44, 44, 44, 0.95);
+  backdrop-filter: blur(20px);
+  padding: 14px 50px;
+  box-shadow: 0 4px 30px rgba(0,0,0,0.15);
+}
+.nav-logo {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--white);
+  letter-spacing: 0.05em;
+  text-decoration: none;
+  transition: color 0.3s;
+}
+.nav-logo span { color: var(--gold); }
+.nav-links {
+  display: flex;
+  gap: 36px;
+  list-style: none;
+}
+.nav-links a {
+  color: rgba(255,255,255,0.7);
+  text-decoration: none;
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition: color 0.3s ease;
+  position: relative;
+}
+.nav-links a::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 0;
+  width: 0;
+  height: 1px;
+  background: var(--gold);
+  transition: width 0.3s ease;
+}
+.nav-links a:hover { color: var(--gold); }
+.nav-links a:hover::after { width: 100%; }
+
+/* Mobile menu toggle */
+.nav-toggle {
+  display: none;
+  flex-direction: column;
+  gap: 5px;
+  cursor: pointer;
+  z-index: 9999;
+}
+.nav-toggle span {
+  width: 28px;
+  height: 2px;
+  background: var(--white);
+  transition: all 0.3s ease;
+}
+.nav-toggle.active span:nth-child(1) { transform: rotate(45deg) translate(5px, 5px); }
+.nav-toggle.active span:nth-child(2) { opacity: 0; }
+.nav-toggle.active span:nth-child(3) { transform: rotate(-45deg) translate(5px, -5px); }
+
+/* ============================================
+   HERO SECTION
+   ============================================ */
+.hero {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--charcoal);
+  overflow: hidden;
+}
+
+/* Marble texture overlay */
+.hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(176,141,87,0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(176,141,87,0.05) 0%, transparent 40%),
+    radial-gradient(ellipse at 50% 80%, rgba(232,228,224,0.03) 0%, transparent 50%);
+  z-index: 1;
+}
+
+/* Animated blueprint grid in hero */
+.hero-grid {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  opacity: 0;
+  animation: heroGridIn 2s ease 2.8s forwards;
+  background-image:
+    linear-gradient(rgba(176,141,87,0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(176,141,87,0.06) 1px, transparent 1px);
+  background-size: 80px 80px;
+}
+@keyframes heroGridIn { to { opacity: 1; } }
+
+/* Structural lines that draw across hero */
+.hero-line {
+  position: absolute;
+  background: var(--gold);
+  z-index: 3;
+  opacity: 0.12;
+}
+.hero-line-h1 {
+  top: 25%;
+  left: 0;
+  height: 1px;
+  width: 0;
+  animation: lineDrawH 1.8s ease 3s forwards;
+}
+.hero-line-h2 {
+  bottom: 30%;
+  right: 0;
+  height: 1px;
+  width: 0;
+  animation: lineDrawH 1.5s ease 3.3s forwards;
+}
+.hero-line-v1 {
+  left: 15%;
+  top: 0;
+  width: 1px;
+  height: 0;
+  animation: lineDrawV 2s ease 3.1s forwards;
+}
+.hero-line-v2 {
+  right: 20%;
+  bottom: 0;
+  width: 1px;
+  height: 0;
+  animation: lineDrawV 1.6s ease 3.4s forwards;
+}
+@keyframes lineDrawH { to { width: 100%; } }
+@keyframes lineDrawV { to { height: 100%; } }
+
+.hero-content {
+  position: relative;
+  z-index: 5;
+  text-align: center;
+  padding: 0 20px;
+}
+
+/* Company name — letter-by-letter assembly */
+.hero-title {
+  font-size: clamp(3rem, 8vw, 7.5rem);
+  color: var(--white);
+  font-weight: 800;
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+.hero-title .word {
+  display: inline-block;
+  margin-right: 0.3em;
+}
+.hero-title .letter {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(100px) rotateX(90deg);
+  animation: letterAssemble 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes letterAssemble {
+  to {
+    opacity: 1;
+    transform: translateY(0) rotateX(0deg);
+  }
+}
+
+.hero-llc {
+  display: block;
+  font-family: 'DM Sans', sans-serif;
+  font-size: clamp(0.8rem, 1.5vw, 1.1rem);
+  color: var(--gold);
+  letter-spacing: 0.5em;
+  text-transform: uppercase;
+  font-weight: 400;
+  margin-top: 5px;
+  opacity: 0;
+  animation: fadeSlideUp 1s ease 2s forwards;
+}
+
+/* Blueprint wireframe around title */
+.hero-frame {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: clamp(300px, 70vw, 900px);
+  height: clamp(180px, 30vw, 350px);
+  z-index: 4;
+}
+.hero-frame .frame-line {
+  position: absolute;
+  background: var(--gold);
+  opacity: 0.2;
+}
+.frame-top { top: 0; left: 0; height: 1px; width: 0; animation: lineDrawH 1s ease 2.2s forwards; }
+.frame-bottom { bottom: 0; right: 0; height: 1px; width: 0; animation: lineDrawH 1s ease 2.4s forwards; }
+.frame-left { top: 0; left: 0; width: 1px; height: 0; animation: lineDrawV 1s ease 2.3s forwards; }
+.frame-right { top: 0; right: 0; width: 1px; height: 0; animation: lineDrawV 1s ease 2.5s forwards; }
+
+/* Corner brackets */
+.hero-frame .corner {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border-color: var(--gold);
+  border-style: solid;
+  border-width: 0;
+  opacity: 0;
+  animation: cornerIn 0.5s ease forwards;
+}
+.corner-tl { top: -1px; left: -1px; border-top-width: 2px; border-left-width: 2px; animation-delay: 2.6s; }
+.corner-tr { top: -1px; right: -1px; border-top-width: 2px; border-right-width: 2px; animation-delay: 2.7s; }
+.corner-bl { bottom: -1px; left: -1px; border-bottom-width: 2px; border-left-width: 2px; animation-delay: 2.8s; }
+.corner-br { bottom: -1px; right: -1px; border-bottom-width: 2px; border-right-width: 2px; animation-delay: 2.9s; }
+@keyframes cornerIn { to { opacity: 0.4; } }
+
+.hero-tagline {
+  font-family: 'DM Sans', sans-serif;
+  font-size: clamp(0.9rem, 1.8vw, 1.25rem);
+  color: rgba(255,255,255,0.5);
+  font-weight: 300;
+  letter-spacing: 0.15em;
+  margin-top: 30px;
+  opacity: 0;
+  animation: fadeSlideUp 1s ease 2.4s forwards;
+}
+
+.hero-cta {
+  margin-top: 50px;
+  opacity: 0;
+  animation: fadeSlideUp 1s ease 2.8s forwards;
+}
+.hero-cta a {
+  display: inline-block;
+  padding: 16px 48px;
+  border: 1px solid var(--gold);
+  color: var(--gold);
+  text-decoration: none;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  transition: all 0.4s ease;
+  position: relative;
+  overflow: hidden;
+}
+.hero-cta a::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: var(--gold);
+  transition: left 0.4s ease;
+  z-index: -1;
+}
+.hero-cta a:hover {
+  color: var(--charcoal);
+}
+.hero-cta a:hover::before {
+  left: 0;
+}
+
+/* Scroll indicator */
+.scroll-indicator {
+  position: absolute;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  opacity: 0;
+  animation: fadeSlideUp 1s ease 3.2s forwards;
+}
+.scroll-indicator .mouse {
+  width: 24px;
+  height: 38px;
+  border: 2px solid rgba(176,141,87,0.4);
+  border-radius: 12px;
+  display: flex;
+  justify-content: center;
+  padding-top: 8px;
+}
+.scroll-indicator .wheel {
+  width: 3px;
+  height: 8px;
+  background: var(--gold);
+  border-radius: 3px;
+  animation: mouseScroll 2s ease infinite;
+}
+@keyframes mouseScroll {
+  0% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(12px); }
+}
+
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ============================================
+   SECTION COMMON
+   ============================================ */
+section {
+  position: relative;
+  z-index: 3;
+}
+
+.section-pad {
+  padding: 120px 50px;
+}
+
+/* Structural line that draws across section transitions */
+.section-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  opacity: 0;
+  transition: opacity 1s ease;
+}
+.section-line.top { top: 0; }
+.section-line.visible { opacity: 0.2; }
+
+/* Section headers */
+.section-label {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.7rem;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 16px;
+  opacity: 0;
+  transform: translateX(-30px);
+  transition: all 0.8s ease;
+}
+.section-label.in-view {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.section-title {
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  margin-bottom: 24px;
+  opacity: 0;
+  transform: translateY(40px);
+  transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.15s;
+}
+.section-title.in-view {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.section-desc {
+  font-size: clamp(1rem, 1.5vw, 1.15rem);
+  line-height: 1.8;
+  color: var(--slate);
+  max-width: 600px;
+  opacity: 0;
+  transform: translateY(30px);
+  transition: all 0.8s ease 0.3s;
+}
+.section-desc.in-view {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ============================================
+   STATS SECTION (counter bar)
+   ============================================ */
+.stats-section {
+  background: var(--charcoal);
+  padding: 80px 50px;
+  position: relative;
+  overflow: hidden;
+}
+.stats-section::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 30% 50%, rgba(176,141,87,0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 50%, rgba(176,141,87,0.04) 0%, transparent 50%);
+}
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 40px;
+  max-width: 1000px;
+  margin: 0 auto;
+  position: relative;
+  z-index: 2;
+}
+.stat-item {
+  text-align: center;
+  opacity: 0;
+  transform: translateY(40px);
+  transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.stat-item.in-view {
+  opacity: 1;
+  transform: translateY(0);
+}
+.stat-number {
+  font-family: 'Playfair Display', serif;
+  font-size: clamp(2.5rem, 5vw, 4rem);
+  color: var(--gold);
+  font-weight: 700;
+  line-height: 1;
+  margin-bottom: 10px;
+}
+.stat-label {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.8rem;
+  color: rgba(255,255,255,0.5);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+/* Vertical dividers between stats */
+.stats-grid .stat-item:not(:last-child) {
+  position: relative;
+}
+.stats-grid .stat-item:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  right: -20px;
+  top: 10%;
+  height: 80%;
+  width: 1px;
+  background: linear-gradient(to bottom, transparent, var(--gold), transparent);
+  opacity: 0.2;
+}
+
+/* ============================================
+   SERVICES SECTION
+   ============================================ */
+.services-section {
+  background: var(--cream);
+  position: relative;
+}
+
+/* Crane SVG animation */
+.crane-container {
+  position: absolute;
+  top: 80px;
+  right: 80px;
+  width: 120px;
+  height: 200px;
+  opacity: 0;
+  transition: opacity 1s ease;
+  z-index: 2;
+}
+.crane-container.in-view { opacity: 0.12; }
+.crane-container svg {
+  width: 100%;
+  height: 100%;
+}
+.crane-hook {
+  animation: craneSwing 4s ease-in-out infinite;
+  transform-origin: top center;
+}
+@keyframes craneSwing {
+  0%, 100% { transform: rotate(-3deg); }
+  50% { transform: rotate(3deg); }
+}
+
+.services-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 40px;
+  max-width: 1200px;
+  margin: 60px auto 0;
+}
+
+.service-card {
+  position: relative;
+  padding: 50px 40px;
+  background: var(--white);
+  border-radius: 2px;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(60px) scale(0.95);
+  transition: all 0.9s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.service-card.in-view {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+/* Blueprint wireframe effect on cards */
+.service-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1px dashed var(--gold);
+  opacity: 0.2;
+  transition: opacity 0.6s ease 0.8s;
+}
+.service-card.in-view::before {
+  opacity: 0;
+}
+
+/* Card top accent line that draws */
+.service-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--gold), var(--gold-light));
+  transition: width 0.8s ease 0.4s;
+}
+.service-card.in-view::after {
+  width: 100%;
+}
+
+.service-icon {
+  width: 56px;
+  height: 56px;
+  margin-bottom: 28px;
+  position: relative;
+}
+.service-icon svg {
+  width: 100%;
+  height: 100%;
+  stroke: var(--gold);
+  fill: none;
+  stroke-width: 1.5;
+  stroke-dasharray: 200;
+  stroke-dashoffset: 200;
+  transition: stroke-dashoffset 1.2s ease 0.3s;
+}
+.service-card.in-view .service-icon svg {
+  stroke-dashoffset: 0;
+}
+
+.service-card h3 {
+  font-size: 1.5rem;
+  margin-bottom: 16px;
+  color: var(--charcoal);
+}
+.service-card p {
+  font-size: 0.95rem;
+  line-height: 1.7;
+  color: var(--slate);
+}
+
+/* Hover state */
+.service-card:hover {
+  box-shadow: 0 20px 60px rgba(0,0,0,0.08);
+  transform: translateY(-4px) !important;
+}
+
+/* ============================================
+   ABOUT / VALUES SECTION
+   ============================================ */
+.about-section {
+  background: var(--white);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Marble texture */
+.about-section::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 0% 0%, rgba(232,228,224,0.5) 0%, transparent 50%),
+    radial-gradient(ellipse at 100% 100%, rgba(232,228,224,0.3) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+.about-content {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 80px;
+  max-width: 1200px;
+  margin: 0 auto;
+  align-items: center;
+}
+
+.about-text {
+  position: relative;
+  z-index: 2;
+}
+
+.about-quote {
+  font-family: 'Playfair Display', serif;
+  font-size: clamp(1.3rem, 2.5vw, 1.8rem);
+  font-style: italic;
+  color: var(--charcoal);
+  line-height: 1.5;
+  margin-top: 30px;
+  padding-left: 30px;
+  border-left: 2px solid var(--gold);
+  opacity: 0;
+  transform: translateX(-30px);
+  transition: all 0.8s ease 0.4s;
+}
+.about-quote.in-view {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* Values - foundation blocks */
+.values-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  position: relative;
+  z-index: 2;
+}
+
+.value-block {
+  padding: 32px 36px;
+  position: relative;
+  border-left: 3px solid transparent;
+  opacity: 0;
+  transform: translateY(30px) translateX(40px);
+  transition: all 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  background: linear-gradient(135deg, rgba(250,248,245,0.8) 0%, rgba(255,255,255,0.4) 100%);
+  margin-bottom: 2px;
+}
+.value-block.in-view {
+  opacity: 1;
+  transform: translateY(0) translateX(0);
+  border-left-color: var(--gold);
+}
+
+.value-block h4 {
+  font-size: 1.15rem;
+  color: var(--charcoal);
+  margin-bottom: 8px;
+}
+.value-block p {
+  font-size: 0.9rem;
+  color: var(--slate);
+  line-height: 1.6;
+}
+
+/* Foundation line at bottom of values */
+.values-foundation {
+  height: 4px;
+  background: linear-gradient(90deg, var(--gold), var(--gold-light), var(--gold));
+  width: 0;
+  transition: width 1.2s cubic-bezier(0.16, 1, 0.3, 1) 0.8s;
+  margin-top: 4px;
+}
+.values-foundation.in-view {
+  width: 100%;
+}
+
+/* ============================================
+   PROCESS / HOW WE WORK
+   ============================================ */
+.process-section {
+  background: var(--charcoal);
+  color: var(--white);
+  position: relative;
+  overflow: hidden;
+}
+.process-section::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(176,141,87,0.06) 0%, transparent 50%);
+}
+
+.process-steps {
+  max-width: 900px;
+  margin: 60px auto 0;
+  position: relative;
+}
+
+/* Vertical connecting line */
+.process-steps::before {
+  content: '';
+  position: absolute;
+  left: 30px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(176,141,87,0.15);
+}
+.process-line-fill {
+  position: absolute;
+  left: 30px;
+  top: 0;
+  width: 1px;
+  height: 0;
+  background: var(--gold);
+  transition: height 1.5s ease;
+}
+.process-line-fill.in-view {
+  height: 100%;
+}
+
+.process-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 40px;
+  padding: 40px 0;
+  opacity: 0;
+  transform: translateX(-30px);
+  transition: all 0.8s ease;
+}
+.process-step.in-view {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.step-num {
+  flex-shrink: 0;
+  width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--gold);
+  font-family: 'Playfair Display', serif;
+  font-size: 1.4rem;
+  color: var(--gold);
+  position: relative;
+  z-index: 2;
+  background: var(--charcoal);
+}
+
+.step-content h3 {
+  font-size: 1.4rem;
+  margin-bottom: 10px;
+  color: var(--white);
+}
+.step-content p {
+  font-size: 0.95rem;
+  line-height: 1.7;
+  color: rgba(255,255,255,0.55);
+}
+
+/* ============================================
+   CONTACT SECTION — Architect's Desk
+   ============================================ */
+.contact-section {
+  background: var(--cream);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Drafting table grid */
+.contact-section::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(176,141,87,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(176,141,87,0.04) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+.contact-content {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 80px;
+  max-width: 1100px;
+  margin: 60px auto 0;
+  position: relative;
+  z-index: 2;
+}
+
+.contact-info {
+  opacity: 0;
+  transform: translateX(-40px);
+  transition: all 0.8s ease;
+}
+.contact-info.in-view {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.contact-detail {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+.contact-detail svg {
+  width: 22px;
+  height: 22px;
+  stroke: var(--gold);
+  fill: none;
+  stroke-width: 1.5;
+  flex-shrink: 0;
+}
+.contact-detail span {
+  font-size: 1rem;
+  color: var(--slate);
+}
+.contact-detail a {
+  color: var(--slate);
+  text-decoration: none;
+  transition: color 0.3s;
+}
+.contact-detail a:hover { color: var(--gold); }
+
+.contact-form {
+  opacity: 0;
+  transform: translateX(40px);
+  transition: all 0.8s ease 0.2s;
+}
+.contact-form.in-view {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.form-group {
+  margin-bottom: 24px;
+  position: relative;
+}
+.form-group label {
+  display: block;
+  font-size: 0.75rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--slate);
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+.form-group input,
+.form-group textarea,
+.form-group select {
+  width: 100%;
+  padding: 14px 18px;
+  border: 1px solid var(--marble);
+  background: var(--white);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.95rem;
+  color: var(--charcoal);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  border-radius: 2px;
+  outline: none;
+}
+.form-group input:focus,
+.form-group textarea:focus,
+.form-group select:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(176,141,87,0.08);
+}
+.form-group textarea {
+  min-height: 140px;
+  resize: vertical;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.btn-submit {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 48px;
+  background: var(--charcoal);
+  color: var(--white);
+  border: none;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.4s ease;
+  border-radius: 2px;
+  position: relative;
+  overflow: hidden;
+}
+.btn-submit::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: var(--gold);
+  transition: left 0.4s ease;
+  z-index: 0;
+}
+.btn-submit span {
+  position: relative;
+  z-index: 1;
+}
+.btn-submit:hover::before { left: 0; }
+.btn-submit:hover { color: var(--charcoal); }
+
+/* ============================================
+   FOOTER
+   ============================================ */
+.footer {
+  background: var(--charcoal);
+  color: rgba(255,255,255,0.4);
+  padding: 60px 50px;
+  text-align: center;
+  position: relative;
+  z-index: 3;
+}
+.footer-logo {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.5rem;
+  color: var(--white);
+  margin-bottom: 8px;
+}
+.footer-logo span { color: var(--gold); }
+.footer-tagline {
+  font-size: 0.8rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 30px;
+}
+.footer-line {
+  width: 60px;
+  height: 1px;
+  background: var(--gold);
+  margin: 0 auto 30px;
+  opacity: 0.3;
+}
+.footer p {
+  font-size: 0.8rem;
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+@media (max-width: 1024px) {
+  .services-grid { grid-template-columns: repeat(2, 1fr); }
+  .about-content { grid-template-columns: 1fr; gap: 40px; }
+  .contact-content { grid-template-columns: 1fr; gap: 40px; }
+  .crane-container { display: none; }
+}
+
+@media (max-width: 768px) {
+  .section-pad { padding: 80px 24px; }
+  .navbar { padding: 16px 24px; }
+  .navbar.scrolled { padding: 12px 24px; }
+  .nav-links {
+    position: fixed;
+    top: 0;
+    right: -100%;
+    width: 280px;
+    height: 100vh;
+    background: rgba(44,44,44,0.98);
+    backdrop-filter: blur(20px);
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 28px;
+    transition: right 0.4s ease;
+  }
+  .nav-links.open { right: 0; }
+  .nav-toggle { display: flex; }
+  .services-grid { grid-template-columns: 1fr; }
+  .stats-grid { grid-template-columns: 1fr; gap: 30px; }
+  .stats-grid .stat-item:not(:last-child)::after { display: none; }
+  .stats-section { padding: 60px 24px; }
+  .form-row { grid-template-columns: 1fr; }
+  .building-indicator { right: 12px; width: 45px; height: 160px; bottom: 20px; }
+  .process-step { gap: 24px; }
+  .footer { padding: 40px 24px; }
+  .hero-frame { display: none; }
+}
+
+@media (max-width: 480px) {
+  .hero-title { font-size: 2.6rem; }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+</style>
+</head>
+<body>
+
+<!-- Loading Screen -->
+<div class="loader" id="loader">
+  <div class="loader-text">Building Something Better</div>
+  <div class="loader-bar"><div class="loader-bar-fill"></div></div>
+</div>
+
+<!-- Blueprint Grid Overlay -->
+<div class="blueprint-grid"></div>
+
+<!-- Floating Particles -->
+<div class="particles" id="particles"></div>
+
+<!-- Building Progress Indicator -->
+<div class="building-indicator" id="buildingIndicator">
+  <svg viewBox="0 0 60 220">
+    <!-- Ground line -->
+    <line class="bld-line" x1="0" y1="210" x2="60" y2="210" style="stroke-dashoffset:0"/>
+
+    <!-- HOUSE (left side) — draws first -->
+    <!-- Foundation -->
+    <rect class="bld-fill" id="bf1" x="2" y="186" width="24" height="24" opacity="0"/>
+    <line class="bld-line" id="bl1a" x1="2" y1="210" x2="2" y2="186"/>
+    <line class="bld-line" id="bl1b" x1="26" y1="210" x2="26" y2="186"/>
+    <line class="bld-line" id="bl1c" x1="2" y1="186" x2="26" y2="186"/>
+    <!-- Door -->
+    <rect class="bld-line" id="bw1a" x="11" y="196" width="6" height="14" rx="0.5"/>
+    <!-- Window -->
+    <rect class="bld-line" id="bw1b" x="4" y="190" width="5" height="5" rx="0.5"/>
+
+    <!-- House roof (pitched) -->
+    <rect class="bld-fill" id="bf2" x="2" y="170" width="24" height="16" opacity="0"/>
+    <line class="bld-line" id="bl2a" x1="0" y1="186" x2="14" y2="168"/>
+    <line class="bld-line" id="bl2b" x1="28" y1="186" x2="14" y2="168"/>
+    <!-- Chimney -->
+    <line class="bld-line" id="bl2c" x1="22" y1="175" x2="22" y2="164"/>
+    <line class="bld-line" id="bw2a" x1="22" y1="164" x2="26" y2="164"/>
+    <line class="bld-line" id="bw2b" x1="26" y1="164" x2="26" y2="175"/>
+
+    <!-- COMMERCIAL BUILDING (right side) — draws next -->
+    <!-- Floor 1 -->
+    <rect class="bld-fill" id="bf3" x="32" y="186" width="24" height="24" opacity="0"/>
+    <line class="bld-line" id="bl3a" x1="32" y1="210" x2="32" y2="186"/>
+    <line class="bld-line" id="bl3b" x1="56" y1="210" x2="56" y2="186"/>
+    <line class="bld-line" id="bl3c" x1="32" y1="186" x2="56" y2="186"/>
+    <!-- Storefront window -->
+    <rect class="bld-line" id="bw3a" x="34" y="192" width="8" height="12" rx="0.5"/>
+    <rect class="bld-line" id="bw3b" x="46" y="192" width="8" height="12" rx="0.5"/>
+
+    <!-- Floor 2 -->
+    <rect class="bld-fill" id="bf4" x="32" y="164" width="24" height="22" opacity="0"/>
+    <line class="bld-line" id="bl4a" x1="32" y1="186" x2="32" y2="164"/>
+    <line class="bld-line" id="bl4b" x1="56" y1="186" x2="56" y2="164"/>
+    <line class="bld-line" id="bl4c" x1="32" y1="164" x2="56" y2="164"/>
+    <rect class="bld-line" id="bw4a" x="35" y="168" width="5" height="6" rx="0.5"/>
+    <rect class="bld-line" id="bw4b" x="44" y="168" width="5" height="6" rx="0.5"/>
+
+    <!-- Floor 3 + flat roof -->
+    <rect class="bld-fill" id="bf5" x="32" y="144" width="24" height="20" opacity="0"/>
+    <line class="bld-line" id="bl5a" x1="32" y1="164" x2="32" y2="144"/>
+    <line class="bld-line" id="bl5b" x1="56" y1="164" x2="56" y2="144"/>
+    <line class="bld-line" id="bl5c" x1="32" y1="144" x2="56" y2="144"/>
+    <rect class="bld-line" id="bw5a" x="35" y="148" width="5" height="6" rx="0.5"/>
+
+    <!-- Rooftop details -->
+    <line class="bld-line" id="roof1" x1="30" y1="144" x2="58" y2="144"/>
+    <line class="bld-line" id="roof2" x1="40" y1="144" x2="40" y2="136"/>
+    <line class="bld-line" id="spire" x1="48" y1="144" x2="48" y2="138"/>
+    <line class="bld-line" id="flag1" x1="40" y1="136" x2="46" y2="136"/>
+    <line class="bld-line" id="flag2" x1="46" y1="136" x2="48" y2="138"/>
+
+    <text class="bld-label" x="30" y="230" id="bldPercent">0%</text>
+  </svg>
+</div>
+
+<!-- Navigation -->
+<nav class="navbar" id="navbar">
+  <a href="#" class="nav-logo"><img src="data:image/png;base64,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" alt="Logic Management" style="height: 50px; width: auto;"></a>
+  <ul class="nav-links" id="navLinks">
+    <li><a href="#services">Services</a></li>
+    <li><a href="#about">About</a></li>
+    <li><a href="#process">Process</a></li>
+    <li><a href="#contact">Contact</a></li>
+  </ul>
+  <div class="nav-toggle" id="navToggle">
+    <span></span><span></span><span></span>
+  </div>
+</nav>
+
+<!-- ============ HERO ============ -->
+<section class="hero" id="hero">
+  <div class="hero-grid"></div>
+  <div class="hero-line hero-line-h1"></div>
+  <div class="hero-line hero-line-h2"></div>
+  <div class="hero-line hero-line-v1"></div>
+  <div class="hero-line hero-line-v2"></div>
+
+  <div class="hero-frame">
+    <div class="frame-line frame-top"></div>
+    <div class="frame-line frame-bottom"></div>
+    <div class="frame-line frame-left"></div>
+    <div class="frame-line frame-right"></div>
+    <div class="corner corner-tl"></div>
+    <div class="corner corner-tr"></div>
+    <div class="corner corner-bl"></div>
+    <div class="corner corner-br"></div>
+  </div>
+
+  <div class="hero-content">
+    <div style="margin-bottom: 24px; opacity: 0; animation: fadeInUp 1s ease forwards 0.2s;">
+      <img src="data:image/png;base64,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" alt="Logic Management" style="height: 180px; width: auto;">
+    </div>
+    
+    <span class="hero-llc"></span>
+    <p class="hero-tagline">Better by Design</p>
+    <div class="hero-cta">
+      <a href="#contact">Start Your Project</a>
+    </div>
+  </div>
+
+  <div class="scroll-indicator">
+    <div class="mouse"><div class="wheel"></div></div>
+  </div>
+</section>
+
+<!-- ============ STATS ============ -->
+<section class="stats-section" id="stats">
+  <div class="stats-grid">
+    <div class="stat-item" data-anim>
+      <div class="stat-number" data-count="20">0+</div>
+      <div class="stat-label">Years Experience</div>
+    </div>
+    <div class="stat-item" data-anim data-delay="0.15">
+      <div class="stat-number" data-count="500">0+</div>
+      <div class="stat-label">Projects Completed</div>
+    </div>
+    <div class="stat-item" data-anim data-delay="0.3">
+      <div class="stat-number" data-count="100">0%</div>
+      <div class="stat-label">Client Satisfaction</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SERVICES ============ -->
+<section class="services-section section-pad" id="services">
+  <div class="section-line top"></div>
+
+  <!-- Crane decoration -->
+  <div class="crane-container" data-anim>
+    <svg viewBox="0 0 120 200">
+      <line x1="60" y1="200" x2="60" y2="30" stroke="#B08D57" stroke-width="2"/>
+      <line x1="60" y1="30" x2="110" y2="30" stroke="#B08D57" stroke-width="2"/>
+      <line x1="60" y1="30" x2="20" y2="10" stroke="#B08D57" stroke-width="1.5"/>
+      <line x1="60" y1="60" x2="110" y2="30" stroke="#B08D57" stroke-width="1" stroke-dasharray="4"/>
+      <g class="crane-hook">
+        <line x1="95" y1="30" x2="95" y2="80" stroke="#B08D57" stroke-width="1"/>
+        <path d="M88 80 Q95 90 102 80" stroke="#B08D57" stroke-width="1.5" fill="none"/>
+      </g>
+      <!-- Base -->
+      <line x1="40" y1="200" x2="80" y2="200" stroke="#B08D57" stroke-width="2"/>
+      <line x1="45" y1="200" x2="60" y2="160" stroke="#B08D57" stroke-width="1"/>
+      <line x1="75" y1="200" x2="60" y2="160" stroke="#B08D57" stroke-width="1"/>
+    </svg>
+  </div>
+
+  <div style="max-width: 1200px; margin: 0 auto;">
+    <div class="section-label" data-anim>What We Build</div>
+    <h2 class="section-title" data-anim>Our Services</h2>
+    <p class="section-desc" data-anim>We transform potential into performance. Every property. Every project. Every time.</p>
+  </div>
+
+  <div class="services-grid">
+    <!-- Property Management -->
+    <div class="service-card" data-anim data-delay="0">
+      <div class="service-icon">
+        <svg viewBox="0 0 56 56">
+          <path d="M8 48V22L28 8L48 22V48H8Z"/>
+          <rect x="20" y="32" width="16" height="16"/>
+          <rect x="24" y="14" width="8" height="8"/>
+          <line x1="8" y1="48" x2="48" y2="48"/>
+        </svg>
+      </div>
+      <h3>Property Management</h3>
+      <p>Comprehensive oversight that transforms properties into high-performing assets. From tenant relations to maintenance coordination, we handle every detail so you never have to worry.</p>
+    </div>
+
+    <!-- Construction Management -->
+    <div class="service-card" data-anim data-delay="0.15">
+      <div class="service-icon">
+        <svg viewBox="0 0 56 56">
+          <path d="M4 52H52"/>
+          <path d="M12 52V28L20 20V52"/>
+          <path d="M24 52V24H40V52"/>
+          <path d="M44 52V16L52 12V52"/>
+          <circle cx="32" cy="34" r="4"/>
+          <line x1="28" y1="14" x2="36" y2="14"/>
+          <line x1="32" y1="10" x2="32" y2="18"/>
+        </svg>
+      </div>
+      <h3>Construction Management</h3>
+      <p>On time. On budget. Exceeding expectations. We oversee every phase of construction with precision and craftsmanship, turning blueprints into buildings that stand the test of time.</p>
+    </div>
+
+    <!-- Real Estate Consulting -->
+    <div class="service-card" data-anim data-delay="0.3">
+      <div class="service-icon">
+        <svg viewBox="0 0 56 56">
+          <circle cx="28" cy="28" r="20"/>
+          <path d="M28 12V28L40 36"/>
+          <line x1="8" y1="42" x2="48" y2="42"/>
+          <polyline points="12,38 20,30 30,34 40,22 48,26"/>
+        </svg>
+      </div>
+      <h3>Real Estate Consulting</h3>
+      <p>Strategic guidance for maximum profitability. We analyze markets, assess opportunities, and develop actionable plans that turn underperforming properties into exceptional investments.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ABOUT ============ -->
+<section class="about-section section-pad" id="about">
+  <div class="section-line top"></div>
+
+  <div style="max-width: 1200px; margin: 0 auto;">
+    <div class="section-label" data-anim>Who We Are</div>
+    <h2 class="section-title" data-anim>Built on Craftsmanship</h2>
+  </div>
+
+  <div class="about-content" style="margin-top: 50px;">
+    <div class="about-text">
+      <p class="section-desc" data-anim>Logic Management was founded on a simple premise: every property has untapped potential. We are builders — not just of structures, but of value, trust, and lasting partnerships.</p>
+      <p class="section-desc" data-anim style="margin-top: 20px;">Based in Northvale, New Jersey, we bring over two decades of expertise to every project. Our approach is methodical, our standards are uncompromising, and our results speak for themselves.</p>
+      <blockquote class="about-quote" data-anim>"We do not just manage properties. We take what is underperforming and make it exceptional."</blockquote>
+    </div>
+
+    <div>
+      <div class="values-stack">
+        <div class="value-block" data-anim data-delay="0">
+          <h4>Precision</h4>
+          <p>Every detail matters. We measure twice, execute once, and deliver results that exceed the brief.</p>
+        </div>
+        <div class="value-block" data-anim data-delay="0.12">
+          <h4>Integrity</h4>
+          <p>Transparent communication, honest assessments, and commitments we always keep.</p>
+        </div>
+        <div class="value-block" data-anim data-delay="0.24">
+          <h4>Craftsmanship</h4>
+          <p>We take pride in our work. Every project reflects the standard we set for ourselves.</p>
+        </div>
+        <div class="value-block" data-anim data-delay="0.36">
+          <h4>Results</h4>
+          <p>On time. On budget. No exceptions. That is not a tagline — it is our operating principle.</p>
+        </div>
+      </div>
+      <div class="values-foundation" data-anim></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PROCESS ============ -->
+<section class="process-section section-pad" id="process">
+  <div style="max-width: 900px; margin: 0 auto;">
+    <div class="section-label" data-anim style="color: var(--gold);">How We Work</div>
+    <h2 class="section-title" data-anim style="color: var(--white);">Our Process</h2>
+    <p class="section-desc" data-anim style="color: rgba(255,255,255,0.5);">Every great building starts with a plan. So does every great partnership.</p>
+  </div>
+
+  <div class="process-steps">
+    <div class="process-line-fill" data-anim></div>
+
+    <div class="process-step" data-anim data-delay="0">
+      <div class="step-num">01</div>
+      <div class="step-content">
+        <h3>Discovery</h3>
+        <p>We start by listening. Understanding your property, your goals, and the gap between where you are and where you want to be.</p>
+      </div>
+    </div>
+
+    <div class="process-step" data-anim data-delay="0.15">
+      <div class="step-num">02</div>
+      <div class="step-content">
+        <h3>Blueprint</h3>
+        <p>We develop a detailed strategy — timelines, budgets, milestones. No surprises. No ambiguity. Just a clear path forward.</p>
+      </div>
+    </div>
+
+    <div class="process-step" data-anim data-delay="0.3">
+      <div class="step-num">03</div>
+      <div class="step-content">
+        <h3>Build</h3>
+        <p>Execution with precision. Our team manages every phase, every contractor, every detail. You stay informed. We stay on schedule.</p>
+      </div>
+    </div>
+
+    <div class="process-step" data-anim data-delay="0.45">
+      <div class="step-num">04</div>
+      <div class="step-content">
+        <h3>Deliver</h3>
+        <p>The finished product — on time, on budget, exceeding your expectations. Then we stay on to ensure lasting performance.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CONTACT ============ -->
+<section class="contact-section section-pad" id="contact">
+  <div class="section-line top"></div>
+
+  <div style="max-width: 1100px; margin: 0 auto;">
+    <div class="section-label" data-anim>Get In Touch</div>
+    <h2 class="section-title" data-anim>Let's Build Together</h2>
+    <p class="section-desc" data-anim>Ready to transform your property? Tell us about your project.</p>
+  </div>
+
+  <div class="contact-content">
+    <div class="contact-info" data-anim>
+      <div class="contact-detail">
+        <svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+        <a href="tel:2017502022"><span>201-750-2022</span></a>
+      </div>
+      <div class="contact-detail">
+        <svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        <span>Northvale, NJ 07647</span>
+      </div>
+      <div class="contact-detail">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <span>Mon – Fri, 8:00 AM – 6:00 PM</span>
+      </div>
+
+      <div style="margin-top: 50px; padding-top: 30px; border-top: 1px solid var(--marble);">
+        <p style="font-family: 'Playfair Display', serif; font-size: 1.3rem; color: var(--charcoal); line-height: 1.5; font-style: italic;">
+          "On time, on budget,<br>exceeding your expectations."
+        </p>
+      </div>
+    </div>
+
+    <form class="contact-form" data-anim onsubmit="event.preventDefault(); this.querySelector('.btn-submit span').textContent = 'Message Sent'; this.querySelector('.btn-submit').style.background = 'var(--gold)'; this.querySelector('.btn-submit').style.color = 'var(--charcoal)';">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Name</label>
+          <input type="text" placeholder="Your name" required>
+        </div>
+        <div class="form-group">
+          <label>Phone</label>
+          <input type="tel" placeholder="Your phone">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" placeholder="Your email" required>
+      </div>
+      <div class="form-group">
+        <label>Service Interest</label>
+        <select>
+          <option value="" disabled selected>Select a service</option>
+          <option>Property Management</option>
+          <option>Construction Management</option>
+          <option>Real Estate Consulting</option>
+          <option>Multiple Services</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Project Details</label>
+        <textarea placeholder="Tell us about your project..."></textarea>
+      </div>
+      <button type="submit" class="btn-submit">
+        <span>Send Message</span>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="position: relative; z-index: 1;">
+          <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+        </svg>
+      </button>
+    </form>
+  </div>
+</section>
+
+<!-- ============ FOOTER ============ -->
+<footer class="footer">
+  <div class="footer-logo"><img src="data:image/png;base64,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" alt="Logic Management" style="height: 45px; width: auto;"></div>
+  <div class="footer-tagline">Better by Design</div>
+  <div class="footer-line"></div>
+  <p>&copy; 2024 Logic Management. All rights reserved. &nbsp;|&nbsp; Northvale, NJ 07647</p>
+</footer>
+
+<!-- ============================================
+     JAVASCRIPT
+     ============================================ -->
+<script>
+(function() {
+  'use strict';
+
+  // ---- LOADING SCREEN ----
+  window.addEventListener('load', function() {
+    setTimeout(function() {
+      document.getElementById('loader').classList.add('done');
+      startHeroAnimation();
+    }, 2600);
+  });
+
+  // ---- HERO LETTER ANIMATION ----
+  function startHeroAnimation() {
+    const title = document.getElementById('heroTitle');
+    const words = []; // Logo replaces animated text
+    let totalIndex = 0;
+
+    words.forEach(function(word) {
+      const wordSpan = document.createElement('span');
+      wordSpan.className = 'word';
+      
+      for (let i = 0; i < word.length; i++) {
+        const letterSpan = document.createElement('span');
+        letterSpan.className = 'letter';
+        letterSpan.textContent = word[i];
+        letterSpan.style.animationDelay = (0.3 + totalIndex * 0.07) + 's';
+        wordSpan.appendChild(letterSpan);
+        totalIndex++;
+      }
+      title.appendChild(wordSpan);
+    });
+  }
+
+  // ---- FLOATING PARTICLES ----
+  (function createParticles() {
+    const container = document.getElementById('particles');
+    const types = ['square', 'circle', 'line'];
+    for (let i = 0; i < 25; i++) {
+      const p = document.createElement('div');
+      p.className = 'particle ' + types[Math.floor(Math.random() * types.length)];
+      const size = Math.random() * 4 + 2;
+      p.style.width = size + 'px';
+      p.style.height = (p.classList.contains('line') ? '1' : size) + 'px';
+      p.style.left = Math.random() * 100 + '%';
+      p.style.animationDuration = (Math.random() * 20 + 15) + 's';
+      p.style.animationDelay = (Math.random() * 20) + 's';
+      container.appendChild(p);
+    }
+  })();
+
+  // ---- NAVBAR SCROLL ----
+  const navbar = document.getElementById('navbar');
+  const buildingIndicator = document.getElementById('buildingIndicator');
+
+  // ---- MOBILE NAV ----
+  document.getElementById('navToggle').addEventListener('click', function() {
+    this.classList.toggle('active');
+    document.getElementById('navLinks').classList.toggle('open');
+  });
+  // Close mobile nav on link click
+  document.querySelectorAll('.nav-links a').forEach(function(a) {
+    a.addEventListener('click', function() {
+      document.getElementById('navToggle').classList.remove('active');
+      document.getElementById('navLinks').classList.remove('open');
+    });
+  });
+
+  // ---- SCROLL-BASED UPDATES ----
+  function onScroll() {
+    const scrollY = window.scrollY;
+    const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+    const scrollPercent = Math.min(scrollY / docHeight, 1);
+
+    // Navbar
+    navbar.classList.toggle('scrolled', scrollY > 80);
+
+    // Building indicator visibility
+    buildingIndicator.classList.toggle('visible', scrollY > 200);
+
+    // Update building
+    updateBuilding(scrollPercent);
+  }
+
+  // ---- BUILDING PROGRESS ----
+  function updateBuilding(pct) {
+    const floors = [
+      { threshold: 0.05, fills: ['bf1'], lines: ['bl1a','bl1b','bl1c','bw1a','bw1b'] },
+      { threshold: 0.2, fills: ['bf2'], lines: ['bl2a','bl2b','bl2c','bw2a','bw2b'] },
+      { threshold: 0.4, fills: ['bf3'], lines: ['bl3a','bl3b','bl3c','bw3a','bw3b'] },
+      { threshold: 0.6, fills: ['bf4'], lines: ['bl4a','bl4b','bl4c','bw4a','bw4b'] },
+      { threshold: 0.75, fills: ['bf5'], lines: ['bl5a','bl5b','bl5c','bw5a'] },
+      { threshold: 0.9, fills: [], lines: ['roof1','roof2','spire','flag1','flag2'] },
+    ];
+
+    floors.forEach(function(floor) {
+      const active = pct >= floor.threshold;
+      floor.fills.forEach(function(id) {
+        const el = document.getElementById(id);
+        if (el) el.setAttribute('opacity', active ? '0.08' : '0');
+      });
+      floor.lines.forEach(function(id) {
+        const el = document.getElementById(id);
+        if (el) el.style.strokeDashoffset = active ? '0' : '1000';
+      });
+    });
+
+    // Percent label
+    const label = document.getElementById('bldPercent');
+    if (label) label.textContent = Math.round(pct * 100) + '%';
+  }
+
+  // ---- INTERSECTION OBSERVER (scroll animations) ----
+  const observerOptions = { threshold: 0.15, rootMargin: '0px 0px -50px 0px' };
+
+  const observer = new IntersectionObserver(function(entries) {
+    entries.forEach(function(entry) {
+      if (!entry.isIntersecting) return;
+
+      const el = entry.target;
+      const delay = parseFloat(el.dataset.delay || 0) * 1000;
+
+      setTimeout(function() {
+        el.classList.add('in-view');
+
+        // Counter animation for stat numbers
+        if (el.classList.contains('stat-item')) {
+          animateCounter(el.querySelector('.stat-number'));
+        }
+      }, delay);
+
+      observer.unobserve(el);
+    });
+  }, observerOptions);
+
+  // Observe all animated elements
+  document.querySelectorAll('[data-anim]').forEach(function(el) {
+    observer.observe(el);
+  });
+
+  // Section lines
+  const lineObserver = new IntersectionObserver(function(entries) {
+    entries.forEach(function(entry) {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+        lineObserver.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0 });
+
+  document.querySelectorAll('.section-line').forEach(function(el) {
+    lineObserver.observe(el);
+  });
+
+  // ---- COUNTER ANIMATION ----
+  function animateCounter(el) {
+    if (!el || el.dataset.counted) return;
+    el.dataset.counted = 'true';
+    const target = parseInt(el.dataset.count);
+    const suffix = el.textContent.replace(/[0-9]/g, '');
+    const duration = 2000;
+    const start = performance.now();
+
+    function tick(now) {
+      const elapsed = now - start;
+      const progress = Math.min(elapsed / duration, 1);
+      // Ease out cubic
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const current = Math.round(eased * target);
+      el.textContent = current + suffix;
+      if (progress < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+
+  // ---- SMOOTH SCROLL for nav links ----
+  document.querySelectorAll('a[href^="#"]').forEach(function(a) {
+    a.addEventListener('click', function(e) {
+      const target = document.querySelector(this.getAttribute('href'));
+      if (target) {
+        e.preventDefault();
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+  });
+
+  // ---- EVENT LISTENERS ----
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll(); // initial state
+
+})();
+</script>
+</body>
+</html>
